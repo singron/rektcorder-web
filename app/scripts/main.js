@@ -66,15 +66,26 @@ var Rekt = function(options) {
 	Rekt.then = function() {
 		return Date.now() - Rekt.offset;
 	};
+	Rekt.downloadTimeout = null;
 	Rekt.download = function() {
+		console.log('starting download');
 		// jshint undef:false
-		oboe('http://destisenpaii.me/log/chat-'+logTime(Rekt.time)+'.log').done(function(msg) {
-		// jshint undef:true
+		var o = oboe('http://destisenpaii.me/log/chat-'+logTime(Rekt.time)+'.log').done(function(msg) {
+			// jshint undef:true
 			// next object available
 			Rekt.messageQueue.enqueue(msg);
 			if (!Rekt.processing) {
 				Rekt.process();
 			}
+			clearTimeout(Rekt.downloadTimeout);
+			Rekt.downloadTimeout = setTimeout(function() {
+				if (logTime(Rekt.lastLogTime) !== logTime(new Date(Rekt.then()))) {
+					o.abort();
+					console.log('download finished', thing);
+					Rekt.lastLogTime = new Date(Rekt.then());
+					Rekt.download();
+				}
+			}, 5000);
 		}).fail(function(error) {
 			console.log('FAIL');
 			console.log(error);
@@ -84,11 +95,6 @@ var Rekt = function(options) {
 				d.innerHTML = 'No Logs Available';
 				Rekt.chatEl.appendChild(d);
 			}
-		}).on('end', function() {
-		    // all objects sent
-			// get next hour
-			Rekt.lastLogTime += 1000 * 60 * 60;
-			Rekt.download();
 		});
 	};
 	Rekt.pause = function() {
