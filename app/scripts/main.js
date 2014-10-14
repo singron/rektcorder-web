@@ -20,10 +20,10 @@ var Rekt = function(options) {
 	});
 	$(Rekt.playEl).click(function() {
 		if (Rekt.paused) {
-			Rekt.playEl.firstChild.className = "glyphicon glyphicon-pause";
+			Rekt.playEl.firstChild.className = 'glyphicon glyphicon-pause';
 			Rekt.play();
 		} else {
-			Rekt.playEl.firstChild.className = "glyphicon glyphicon-play";
+			Rekt.playEl.firstChild.className = 'glyphicon glyphicon-play';
 			Rekt.pause();
 		}
 	});
@@ -34,12 +34,25 @@ var Rekt = function(options) {
 		};
 		return t.getUTCFullYear() + '-' + p(t.getUTCMonth()+1) + '-' + p(t.getUTCDate()) + '-' + p(t.getUTCHours());
 	};
+
 	Rekt.start = function() {
 		Rekt.messageQueue = new Queue();
 		Rekt.processing = false;
 		Rekt.paused = false;
-		Rekt.playEl.firstChild.className = "glyphicon glyphicon-pause";
+		Rekt.playEl.firstChild.className = 'glyphicon glyphicon-pause';
+		Rekt.lastLogTime = Rekt.time;
+		Rekt.download();
+		setInterval(function() {
+			Rekt.timeEl.innerHTML = new Date(Rekt.then()).toLocaleString();
+		}, 1000);
+	};
+	Rekt.then = function() {
+		return Date.now() - Rekt.offset;
+	};
+	Rekt.download = function() {
+		// jshint undef:false
 		oboe('http://destisenpaii.me/log/chat-'+logTime(Rekt.time)+'.log').done(function(msg) {
+		// jshint undef:true
 			// next object available
 			Rekt.messageQueue.enqueue(msg);
 			if (!Rekt.processing) {
@@ -48,27 +61,33 @@ var Rekt = function(options) {
 		}).fail(function(error) {
 			console.log('FAIL');
 			console.log(error);
-		}).on('end', function(things) {
+			if (error.statusCode === 0 && error.thrown === undefined) {
+				var d = document.createElement('div');
+				d.className = 'msg';
+				d.innerHTML = 'No Logs Available';
+				Rekt.chatEl.appendChild(d);
+			}
+		}).on('end', function() {
 		    // all objects sent
+			// get next hour
+			Rekt.lastLogTime += 1000 * 60 * 60;
+			Rekt.download();
 		});
-		setInterval(function() {
-			Rekt.timeEl.innerHTML = new Date(Date.now() - Rekt.offset).toLocaleString();
-		}, 1000);
 	};
 	Rekt.pause = function() {
 		Rekt.paused = true;
-		Rekt.paused_at = Date.now();
+		Rekt.pausedAt = Date.now();
 	};
 	Rekt.play = function() {
 		Rekt.paused = false;
-		Rekt.offset += Date.now() - Rekt.paused_at;
+		Rekt.offset += Date.now() - Rekt.pausedAt;
 		if (!Rekt.processing) {
 			Rekt.process();
 		}
 	};
 	Rekt.process = function() {
 		if (Rekt.paused) {
-			console.log("skipping paused");
+			console.log('skipping paused');
 			Rekt.processing = false;
 			return;
 		}
@@ -80,7 +99,7 @@ var Rekt = function(options) {
 		var msg = Rekt.messageQueue.dequeue();
 		var millis = (msg.timestamp + Rekt.offset) - Date.now();
 		if (Math.abs(millis) > 1000 * 60 * 60) {
-			console.log("Waiting too long: ", millis);
+			console.log('Waiting too long: ', millis);
 		}
 		if (millis > 0) {
 			setTimeout(function() {
@@ -140,11 +159,13 @@ var Rekt = function(options) {
 	return Rekt;
 };
 
-Twitch.init({clientId: '3ccszp1i7lvkkyb4npiizsy3ida8jtt'}, function(error, status) {
+// jshint undef:false
+Twitch.init({clientId: '3ccszp1i7lvkkyb4npiizsy3ida8jtt'}, function(error) {
+	// jshint undef:true
 	if (error !== null) {
 		console.log('TWITCH INIT FAILED ', error);
 	}
-	var r = Rekt({
+	var r = new Rekt({
 		chatEl: document.getElementById('msgs'),
 		videoEl: document.getElementById('video'),
 		playEl: document.getElementById('play-btn'),
