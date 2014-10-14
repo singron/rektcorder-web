@@ -8,6 +8,11 @@ html, body {
 	margin: 0px;
 }
 
+body, p {
+	margin: 0;
+	padding: 0;
+}
+
 .fill {
 	height: 100%;
 	width: 100%;
@@ -18,9 +23,17 @@ html, body {
 	height: 100%;
 }
 
+.msgs-col {
+	display:table;
+	table-layout: fixed;
+	background-color: black;
+}
+
+// side by side
 @media screen and (min-aspect-ratio: 4/3) {
 	.msgs-col {
 		width: 30%;
+		max-width: 30%;
 		height: 100%;
 		float: right;
 	}
@@ -32,6 +45,7 @@ html, body {
 	}
 }
 
+// vertical
 @media screen and (max-aspect-ratio: 4/3) {
 	.msgs-col {
 		width: 100%;
@@ -62,13 +76,36 @@ html, body {
 
 #videoUrl {
 	max-width: 600px;
+	min-width: 350px;
+}
+
+#msgs-wrapper {
+	display:table-row;
+	height: 100%;
 }
 
 #msgs {
+	overflow-y: scroll;
 	height: 100%;
-	overflow: scroll;
+	word-wrap:break-word;
+}
+
+#controls {
+	display:table-row;
+	//margin: 10px;
+}
+
+#controls .glyphicon {
+	font-size: 20px;
+	margin-left: 20px;
+	margin-right: 20px;
 }
 
 .nick {
 	font-weight: bold;
+	color: #ddd;
+}
+
+.msg {
+	color: #999;
 }

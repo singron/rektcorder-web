@@ -4,6 +4,8 @@ var Rekt = function(options) {
 	var Rekt = {};
 	Rekt.chatEl = options.chatEl;
 	Rekt.videoEl = options.videoEl;
+	Rekt.playEl = options.playEl;
+	Rekt.timeEl = options.timeEl;
 	Rekt.scrolledUp = false;
 	$(Rekt.chatEl).scroll(function() {
 		var e = Rekt.chatEl;
@@ -16,6 +18,16 @@ var Rekt = function(options) {
 			Rekt.scrolledUp = true;
 		}
 	});
+	$(Rekt.playEl).click(function() {
+		if (Rekt.paused) {
+			Rekt.playEl.firstChild.className = "glyphicon glyphicon-pause";
+			Rekt.play();
+		} else {
+			Rekt.playEl.firstChild.className = "glyphicon glyphicon-play";
+			Rekt.pause();
+		}
+	});
+
 	var logTime = function(t) {
 		var p = function(n) {
 			return n < 10 ? '0' + n : '' + n;
@@ -25,6 +37,8 @@ var Rekt = function(options) {
 	Rekt.start = function() {
 		Rekt.messageQueue = new Queue();
 		Rekt.processing = false;
+		Rekt.paused = false;
+		Rekt.playEl.firstChild.className = "glyphicon glyphicon-pause";
 		oboe('http://destisenpaii.me/log/chat-'+logTime(Rekt.time)+'.log').done(function(msg) {
 			// next object available
 			Rekt.messageQueue.enqueue(msg);
@@ -37,8 +51,27 @@ var Rekt = function(options) {
 		}).on('end', function(things) {
 		    // all objects sent
 		});
+		setInterval(function() {
+			Rekt.timeEl.innerHTML = new Date(Date.now() - Rekt.offset).toLocaleString();
+		}, 1000);
+	};
+	Rekt.pause = function() {
+		Rekt.paused = true;
+		Rekt.paused_at = Date.now();
+	};
+	Rekt.play = function() {
+		Rekt.paused = false;
+		Rekt.offset += Date.now() - Rekt.paused_at;
+		if (!Rekt.processing) {
+			Rekt.process();
+		}
 	};
 	Rekt.process = function() {
+		if (Rekt.paused) {
+			console.log("skipping paused");
+			Rekt.processing = false;
+			return;
+		}
 		if (Rekt.messageQueue.size === 0) {
 			Rekt.processing = false;
 			return;
@@ -52,11 +85,9 @@ var Rekt = function(options) {
 		if (millis > 0) {
 			setTimeout(function() {
 				Rekt.onMsg(msg);
-				Rekt.process();
 			}, millis);
 		} else {
 			Rekt.onMsg(msg);
-			Rekt.process();
 		}
 	};
 	var msgTmpl = doT.template(
@@ -115,7 +146,9 @@ Twitch.init({clientId: '3ccszp1i7lvkkyb4npiizsy3ida8jtt'}, function(error, statu
 	}
 	var r = Rekt({
 		chatEl: document.getElementById('msgs'),
-		videoEl: document.getElementById('video')
+		videoEl: document.getElementById('video'),
+		playEl: document.getElementById('play-btn'),
+		timeEl: document.getElementById('time')
 	});
 	$('#videoUrl').keypress(function(e) {
 		e.preventDefault();
