@@ -116,7 +116,7 @@ var Rekt = function(options) {
 	Rekt.download = function() {
 		console.log('starting download');
 		// jshint undef:false
-		Rekt.oboe = oboe('http://destisenpaii.me/log/chat-'+logTime(Rekt.time)+'.log').done(function(msg) {
+		Rekt.oboe = oboe('http://destisenpaii.me/log/chat-'+logTime(Rekt.lastLogTime)+'.log').done(function(msg) {
 			// jshint undef:true
 			// next object available
 			Rekt.messageQueue.enqueue(msg);
@@ -124,14 +124,17 @@ var Rekt = function(options) {
 				Rekt.process();
 			}
 			clearTimeout(Rekt.downloadTimeout);
-			Rekt.downloadTimeout = setTimeout(function() {
+			var checkDownload = function() {
 				if (logTime(Rekt.lastLogTime) !== logTime(new Date(Rekt.then()))) {
 					Rekt.oboe.abort();
 					console.log('download finished');
 					Rekt.lastLogTime = new Date(Rekt.then());
 					Rekt.download();
+				} else {
+					Rekt.downloadTimeout = setTimeout(checkDownload, 5000);
 				}
-			}, 5000);
+			};
+			Rekt.downloadTimeout = setTimeout(checkDownload, 5000);
 		}).fail(function(error) {
 			console.log('FAIL');
 			console.log(error);
