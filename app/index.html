@@ -9,6 +9,7 @@
     <!-- Place favicon.ico and apple-touch-icon.png in the root directory -->
     <!-- build:css(.) styles/vendor.css -->
     <!-- bower:css -->
+    <link rel="stylesheet" href="bower_components/eonasdan-bootstrap-datetimepicker/build/css/bootstrap-datetimepicker.min.css" />
     <!-- endbower -->
     <!-- endbuild -->
     <!-- build:css(.tmp) styles/main.css -->
@@ -38,8 +39,26 @@
         </div>
         <div class="msgs-col">
           <div id="controls">
+            <a id="control-menu-btn" href="#"><span class="glyphicon glyphicon-cog"></span></a>
             <a id="play-btn"><span></span></a>
             <span id="time"></span>
+            <div id="control-menu-container">
+              <div id="control-menu" style="display: none">
+                <div class="form-group">
+                  Set Time
+                  <div class='input-group date' id='timepicker'>
+                    <input type='text' class="form-control input-sm"/>
+                    <span class="input-group-addon">
+                      <span class="glyphicon glyphicon-calendar"></span>
+                    </span>
+                  </div>
+                </div>
+                offset adjuster (seconds)
+                <input id="offset-adj" class="form-control input-sm" type="number" value="0"/>
+                <a id="reload-logs" href="#">Reload logs</a><br>
+                <a href="https://github.com/singron/rektcorder-web" target="_blank">source</a>
+              </div>
+            </div>
           </div>
           <div id="msgs-wrapper">
             <div id="msgs"></div>
@@ -66,6 +85,8 @@
     <script src="bower_components/oboe/dist/oboe-browser.js"></script>
     <script src="bower_components/data-structures/distribution/browser/data-structures-1.4.2.js"></script>
     <script src="bower_components/doT/doT.js"></script>
+    <script src="bower_components/moment/moment.js"></script>
+    <script src="bower_components/eonasdan-bootstrap-datetimepicker/build/js/bootstrap-datetimepicker.min.js"></script>
     <!-- endbower -->
     <!-- endbuild -->
 

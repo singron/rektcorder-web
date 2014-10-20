@@ -5,6 +5,7 @@
     "bootstrap-sass-official": "~3.2.0",
     "oboe": "~2.0.2",
     "data-structures": "~1.4.2",
-    "doT": "~1.0.1"
+    "doT": "~1.0.1",
+    "eonasdan-bootstrap-datetimepicker": "~3.1.3"
   }
 }

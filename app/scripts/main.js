@@ -1,5 +1,5 @@
 /* rektcorder-web is a frontend for rektcorder
- * Copyright (C) 2014 Eric Culp 
+ * Copyright (C) 2014 Eric Culp
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -17,6 +17,37 @@
  */
 'use strict';
 var Queue = require('data-structures').Queue;
+
+// from css-tricks.com
+function getQueryVariable(variable) {
+	var query = window.location.search.substring(1);
+	var vars = query.split('&');
+	for (var i=0;i<vars.length;i++) {
+		var pair = vars[i].split('=');
+		if(pair[0] === variable){return pair[1];}
+	}
+	return(false);
+}
+
+// return number of seconds of XXhXXmXXs format
+function parseDuration(str) {
+	var m = str.match(/^((\d)+h)?((\d)+m)?((\d)+s)?$/);
+	if (!m) {
+		return null;
+	}
+	var seconds = 0;
+	if (m[2]) {
+		seconds += m[2] * 3600;
+	}
+	if (m[4]) {
+		seconds += m[4] * 60;
+	}
+	if (m[6]) {
+		seconds += m[6] * 1;
+	}
+	return seconds;
+}
+
 var Rekt = function(options) {
 	var Rekt = {};
 	Rekt.chatEl = options.chatEl;
@@ -24,12 +55,13 @@ var Rekt = function(options) {
 	Rekt.playEl = options.playEl;
 	Rekt.timeEl = options.timeEl;
 	Rekt.scrolledUp = false;
+	Rekt.offsetAdj = 0;
 	$(Rekt.chatEl).scroll(function() {
 		var e = Rekt.chatEl;
 		var a = e.scrollTop;
 		var b = e.scrollHeight - e.clientHeight;
 		var c = a/b;
-		if (c === 1) {
+		if (c === 1 || b === 0) {
 			Rekt.scrolledUp = false;
 		} else {
 			Rekt.scrolledUp = true;
@@ -53,24 +85,38 @@ var Rekt = function(options) {
 	};
 
 	Rekt.start = function() {
+		Rekt.scrolledUp = false;
+		Rekt.chatEl.scrollTop = Rekt.chatEl.scrollHeight;
 		Rekt.messageQueue = new Queue();
 		Rekt.processing = false;
 		Rekt.paused = false;
 		Rekt.playEl.firstChild.className = 'glyphicon glyphicon-pause';
 		Rekt.lastLogTime = Rekt.time;
 		Rekt.download();
-		setInterval(function() {
+		Rekt.updateTime = setInterval(function() {
 			Rekt.timeEl.innerHTML = new Date(Rekt.then()).toLocaleString();
 		}, 1000);
 	};
+	Rekt.stop = function() {
+		clearTimeout(Rekt.updateTime);
+		clearTimeout(Rekt.downloadTimeout);
+		clearTimeout(Rekt.nextProcess);
+		Rekt.processing = false;
+		if (Rekt.oboe) {
+			Rekt.oboe.abort();
+		}
+	};
+	Rekt.clear = function() {
+		Rekt.chatEl.innerHTML = '';
+	};
 	Rekt.then = function() {
-		return Date.now() - Rekt.offset;
+		return Date.now() - Rekt.offset + Rekt.offsetAdj * 1000;
 	};
 	Rekt.downloadTimeout = null;
 	Rekt.download = function() {
 		console.log('starting download');
 		// jshint undef:false
-		var o = oboe('http://destisenpaii.me/log/chat-'+logTime(Rekt.time)+'.log').done(function(msg) {
+		Rekt.oboe = oboe('http://destisenpaii.me/log/chat-'+logTime(Rekt.time)+'.log').done(function(msg) {
 			// jshint undef:true
 			// next object available
 			Rekt.messageQueue.enqueue(msg);
@@ -80,8 +126,8 @@ var Rekt = function(options) {
 			clearTimeout(Rekt.downloadTimeout);
 			Rekt.downloadTimeout = setTimeout(function() {
 				if (logTime(Rekt.lastLogTime) !== logTime(new Date(Rekt.then()))) {
-					o.abort();
-					console.log('download finished', thing);
+					Rekt.oboe.abort();
+					console.log('download finished');
 					Rekt.lastLogTime = new Date(Rekt.then());
 					Rekt.download();
 				}
@@ -110,7 +156,6 @@ var Rekt = function(options) {
 	};
 	Rekt.process = function() {
 		if (Rekt.paused) {
-			console.log('skipping paused');
 			Rekt.processing = false;
 			return;
 		}
@@ -120,12 +165,12 @@ var Rekt = function(options) {
 		}
 		Rekt.processing = true;
 		var msg = Rekt.messageQueue.dequeue();
-		var millis = (msg.timestamp + Rekt.offset) - Date.now();
+		var millis = msg.timestamp - Rekt.then();
 		if (Math.abs(millis) > 1000 * 60 * 60) {
 			console.log('Waiting too long: ', millis);
 		}
 		if (millis > 0) {
-			setTimeout(function() {
+			Rekt.nextProcess = setTimeout(function() {
 				Rekt.onMsg(msg);
 			}, millis);
 		} else {
@@ -149,11 +194,11 @@ var Rekt = function(options) {
 		Rekt.process();
 	};
 	Rekt.getStartedAt = function(vstr, callback) {
-		var m = vstr.match(/twitch.tv\/destiny\/b\/(\d+)/);
+		var m = vstr.match(/((twitch.tv\/destiny\/)?b\/)?(\d+)/);
 		var videoId = '';
 		if (m) {
-			videoId = 'a'+m[1];
-			Rekt.archiveId = m[1];
+			videoId = 'a'+m[3];
+			Rekt.archiveId = m[3];
 		} else {
 			m = vstr.match(/(b|c)\d+/);
 			if (m) {
@@ -168,19 +213,63 @@ var Rekt = function(options) {
 				return;
 			}
 			// jshint camelcase: false
-			Rekt.time = new Date(video.recorded_at);
-			Rekt.offset = Date.now() - Rekt.time.getTime();
+			Rekt.setTime(new Date(video.recorded_at));
 			// jshint camelcase: true
 			callback(Rekt.time);
 		});
 	};
+	Rekt.setTime = function (t) {
+		Rekt.time = t;
+		Rekt.offset = Date.now() - Rekt.time.getTime();
+	};
 	var videoTmpl = doT.template(
-	 '<object type="application/x-shockwave-flash" data="http://www.twitch.tv/widgets/archive_embed_player.swf" width="100%" height="100%" style="display: block !important;"> <param name="movie" value="http://www.twitch.tv/widgets/archive_embed_player.swf"> <param name="quality" value="high"> <param name="allowFullScreen" value="true"> <param name="allowScriptAccess" value="always"> <param name="pluginspage" value="http://www.macromedia.com/go/getflashplayer"> <param name="autoplay" value="false"> <param name="autostart" value="false"> <param name="flashvars" value="archive_id={{= it.archiveId }}&amp;hostname=www.twitch.tv&amp;start_volume=25&amp;channel=destiny&amp;auto_play=false"> <div style="display: block; cursor: pointer; text-align: center; width: 100%; height: 100%; top: auto; left: auto; position: static;"><div style="-webkit-transition: opacity 150ms ease-out; transition: opacity 150ms ease-out; text-align: left; opacity: 0.25; border: 1px solid rgb(0, 0, 0); width: 100%; height: 100%; background-image: url(chrome-extension://gofhjkjmkpinhpoiabjplobcaignabnl/icon_play.png); background-color: rgba(193, 217, 244, 0.498039); background-repeat: no-repeat;"></div></div><embed src="http://www.twitch.tv/widgets/archive_embed_player.swf" flashvars="archive_id={{= it.archiveId }}&amp;hostname=www.twitch.tv&amp;start_volume=25&amp;channel=destiny&amp;auto_play=false" width="100%" height="100%" type="application/x-shockwave-flash" style="display: none !important;"> </object>');
+	 '<object id="twitch-embed" type="application/x-shockwave-flash" data="http://www.twitch.tv/widgets/archive_embed_player.swf" width="100%" height="100%" style="display: block !important;">' +
+	 '<param name="movie" value="http://www.twitch.tv/widgets/archive_embed_player.swf">' +
+	 '<param name="quality" value="best">' +
+	 '<param name="allowFullScreen" value="true">' +
+	 '<param name="allowScriptAccess" value="always">' +
+	 '<param name="pluginspage" value="http://www.macromedia.com/go/getflashplayer">' +
+	 '<param name="autoplay" value="false">' +
+	 '<param name="autostart" value="false">' +
+	 '<param name="flashvars" value="archive_id={{= it.archiveId }}&hostname=www.twitch.tv&channel=destiny&auto_play=true&eventsCallback=r.playerEvent">' +
+	 '</object>');
 	Rekt.insertVideo = function() {
 		Rekt.videoEl.innerHTML = videoTmpl({archiveId: Rekt.archiveId});
+		Rekt.player = document.getElementById('twitch-embed');
+	};
+	Rekt.playerEvent = function(es) {
+		for (var i = 0; i < es.length; i++) {
+			var e = es[i];
+			console.log('player event:', e);
+			if (e.event === 'videoLoaded') {
+				if (Rekt.seekTo) {
+					Rekt.player.videoSeek(Rekt.seekTo);
+				}
+			}
+			if (e.event === 'videoPlaying') {
+				Rekt.videoStarted = Date.now();
+				setInterval(Rekt.fixSeek, 1000);
+			}
+		}
+	};
+	Rekt.fixSeek = function() {
+		var supposedVideoTime = Date.now() - Rekt.videoStarted;
+		var actualVideoTime = Rekt.player.getVideoTime() * 1000;
+		var millisAhead = supposedVideoTime - actualVideoTime;
+		if (Math.abs(millisAhead) > 5000 && !Rekt.paused && !Rekt.player.isPaused() && actualVideoTime !== Rekt.lastVideoTime) {
+			console.log('Seek of ' + millisAhead / 1000 + ' seconds detected');
+			Rekt.stop();
+			Rekt.clear();
+			Rekt.setTime(new Date(Rekt.time.getTime() - millisAhead));
+			Rekt.videoStarted = Date.now() - actualVideoTime;
+			Rekt.start();
+		}
+		Rekt.lastVideoTime = actualVideoTime;
 	};
 	return Rekt;
 };
+
+var r;
 
 // jshint undef:false
 Twitch.init({clientId: '3ccszp1i7lvkkyb4npiizsy3ida8jtt'}, function(error) {
@@ -188,21 +277,67 @@ Twitch.init({clientId: '3ccszp1i7lvkkyb4npiizsy3ida8jtt'}, function(error) {
 	if (error !== null) {
 		console.log('TWITCH INIT FAILED ', error);
 	}
-	var r = new Rekt({
+	r = new Rekt({
 		chatEl: document.getElementById('msgs'),
 		videoEl: document.getElementById('video'),
 		playEl: document.getElementById('play-btn'),
 		timeEl: document.getElementById('time')
 	});
-	$('#videoUrl').keypress(function(e) {
-		e.preventDefault();
-		if (e.keyCode === 13) {
-			r.getStartedAt(this.value, function() {
-				r.start();
-				r.insertVideo();
-			});
+	var o = getQueryVariable('o');
+	if (o && o.match(/^-?\d+$/)) {
+		$('#offset-adj').val(o);
+		r.offsetAdj = o * 1;
+	}
+	var b = getQueryVariable('b');
+	if (b && b.match(/^\d+$/)) {
+		var t = getQueryVariable('t');
+		var tn = 0;
+		if (t) {
+			tn = parseDuration(t);
+			if (tn === null) {
+				tn = 0;
+			} else {
+				console.log('seeking ' + tn + ' seconds ahead');
+			}
 		}
-		return false;
-	});
+		$('#videoUrl').val('b/'+b);
+		r.getStartedAt('b/'+b, function() {
+			r.setTime(new Date(r.time.getTime() + tn*1000));
+			r.start();
+			r.insertVideo();
+			r.seekTo = tn;
+			$('#timepicker').data('DateTimePicker').setDate(r.time);
+		});
+	} else {
+		$('#videoUrl').keypress(function(e) {
+			e.preventDefault();
+			if (e.keyCode === 13) {
+				r.getStartedAt(this.value, function() {
+					r.start();
+					r.insertVideo();
+					$('#timepicker').data('DateTimePicker').setDate(r.time);
+				});
+			}
+			return false;
+		});
+	}
 });
-
+var tp = $('#timepicker');
+tp.datetimepicker();
+tp.on('dp.change', function(e) {
+	r.stop();
+	r.clear();
+	r.setTime(e.date.toDate());
+	r.start();
+});
+$('#control-menu-btn').click(function() {
+	$('#control-menu').toggle();
+});
+$('#offset-adj').change(function() {
+	r.offsetAdj = this.value * 1;
+});
+$('#reload-logs').click(function() {
+	r.stop();
+	r.clear();
+	r.start();
+});
