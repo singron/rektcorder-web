@@ -79,13 +79,19 @@ body, p {
 	min-width: 350px;
 }
 
-#msgs-wrapper {
+#msgs-wrapper1 {
 	display:table-row;
 	height: 100%;
 }
 
-#msgs {
+#msgs-wrapper2 {
+	position: relative;
 	overflow-y: scroll;
+	height: 100%;
+}
+
+#msgs {
+	position: absolute;
 	height: 100%;
 	word-wrap:break-word;
 }

@@ -31,7 +31,7 @@ function getQueryVariable(variable) {
 
 // return number of seconds of XXhXXmXXs format
 function parseDuration(str) {
-	var m = str.match(/^((\d)+h)?((\d)+m)?((\d)+s)?$/);
+	var m = str.match(/^((\d+)h)?((\d+)m)?((\d+)s)?$/);
 	if (!m) {
 		return null;
 	}
@@ -56,12 +56,12 @@ var Rekt = function(options) {
 	Rekt.timeEl = options.timeEl;
 	Rekt.scrolledUp = false;
 	Rekt.offsetAdj = 0;
-	$(Rekt.chatEl).scroll(function() {
-		var e = Rekt.chatEl;
-		var a = e.scrollTop;
-		var b = e.scrollHeight - e.clientHeight;
-		var c = a/b;
-		if (c === 1 || b === 0) {
+	$(Rekt.chatEl.parentElement).scroll(function() {
+		var p = Rekt.chatEl.parentElement;
+		var pa = p.scrollTop;
+		var pb = p.scrollHeight - p.clientHeight;
+		var pc = pa/pb;
+		if (pc >= .99 || pb === 0) {
 			Rekt.scrolledUp = false;
 		} else {
 			Rekt.scrolledUp = true;
@@ -86,7 +86,7 @@ var Rekt = function(options) {
 
 	Rekt.start = function() {
 		Rekt.scrolledUp = false;
-		Rekt.chatEl.scrollTop = Rekt.chatEl.scrollHeight;
+		Rekt.chatEl.parentElement.scrollTop = Rekt.chatEl.parentElement.scrollHeight;
 		Rekt.messageQueue = new Queue();
 		Rekt.processing = false;
 		Rekt.paused = false;
@@ -186,7 +186,7 @@ var Rekt = function(options) {
 		m.innerHTML = msgTmpl(msg);
 		Rekt.chatEl.appendChild(m);
 		if (!Rekt.scrolledUp) {
-			Rekt.chatEl.scrollTop = Rekt.chatEl.scrollHeight;
+			Rekt.chatEl.parentElement.scrollTop = Rekt.chatEl.parentElement.scrollHeight;
 			while (Rekt.chatEl.children.length > 300) {
 				Rekt.chatEl.firstChild.remove();
 			}
