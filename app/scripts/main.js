@@ -61,7 +61,7 @@ var Rekt = function(options) {
 		var pa = p.scrollTop;
 		var pb = p.scrollHeight - p.clientHeight;
 		var pc = pa/pb;
-		if (pc >= .99 || pb === 0) {
+		if (pc >= 0.99 || pb === 0) {
 			Rekt.scrolledUp = false;
 		} else {
 			Rekt.scrolledUp = true;
