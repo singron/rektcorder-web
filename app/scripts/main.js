@@ -218,7 +218,7 @@ var Rekt = function(options) {
 			// jshint camelcase: false
 			Rekt.setTime(new Date(video.recorded_at));
 			// jshint camelcase: true
-			document.title = video.title + " - DestiSenpaii";
+			document.title = video.title + ' - DestiSenpaii';
 			callback(Rekt.time);
 		});
 	};
