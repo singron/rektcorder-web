@@ -275,6 +275,15 @@ var Rekt = function(options) {
 
 var r;
 
+var linkTmpl = doT.template(
+	'<div class="preview">' +
+		'<a href="{{= it.href }}" class="thumbnail">' +
+			'<img src="{{= it.preview }}" title="{{= it.title }}">' +
+		'</a>' +
+	'</div>'
+);
+
+
 // jshint undef:false
 Twitch.init({clientId: '3ccszp1i7lvkkyb4npiizsy3ida8jtt'}, function(error) {
 	// jshint undef:true
@@ -313,6 +322,21 @@ Twitch.init({clientId: '3ccszp1i7lvkkyb4npiizsy3ida8jtt'}, function(error) {
 			$('#timepicker').data('DateTimePicker').setDate(r.time);
 		});
 	} else {
+		Twitch.api({method: '/channels/destiny/videos?broadcasts=true&limit=4'}, function(error, videos) {
+			if (error) {
+				console.log(error);
+			}
+			var out = '';
+			for (var i = 0; i < videos.videos.length; i++) {
+				var v = videos.videos[i];
+				out += linkTmpl({
+					href: '/?b=' + v._id.substring(1), // aXXXXX -> XXXXX
+					preview: v.preview,
+					title: v.title
+				});
+			}
+			document.getElementById('links').innerHTML = out;
+		});
 		$('#videoUrl').keypress(function(e) {
 			if (e.keyCode === 13) {
 				e.preventDefault();

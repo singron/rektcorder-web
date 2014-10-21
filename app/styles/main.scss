@@ -74,6 +74,36 @@ body, p {
 	transform-style: preserve-3d;
 }
 
+#video {
+	display: table;
+	width: 100%;
+	height: 100%;
+}
+
+#video-url-container1 {
+	display: table-row;
+	height: 150px;
+	width: 100%;
+}
+
+#video-url-container2 {
+	height: 100%;
+	width: 100%;
+}
+
+#links-container1 {
+	display: table-row;
+}
+
+.thumbnail {
+	margin: 0;
+}
+
+.preview {
+	display: table-cell;
+	width: 160px;
+}
+
 #videoUrl {
 	max-width: 600px;
 	min-width: 320px;
