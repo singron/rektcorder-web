@@ -218,6 +218,7 @@ var Rekt = function(options) {
 			// jshint camelcase: false
 			Rekt.setTime(new Date(video.recorded_at));
 			// jshint camelcase: true
+			document.title = video.title + " - DestiSenpaii";
 			callback(Rekt.time);
 		});
 	};
@@ -313,8 +314,8 @@ Twitch.init({clientId: '3ccszp1i7lvkkyb4npiizsy3ida8jtt'}, function(error) {
 		});
 	} else {
 		$('#videoUrl').keypress(function(e) {
-			e.preventDefault();
 			if (e.keyCode === 13) {
+				e.preventDefault();
 				r.getStartedAt(this.value, function() {
 					r.start();
 					r.insertVideo();
