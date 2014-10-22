@@ -170,6 +170,7 @@ var Chat = function(options) {
 		self._.skipSeek(time);
 		var newThen = self.then();
 		if (!oldThen || Math.abs(newThen - oldThen) > 20000) {
+			self.clear();
 			self.processing = false;
 			clearTimeout(self.processTimeout);
 			self._.initStream();
@@ -452,6 +453,7 @@ Twitch.init({clientId: '3ccszp1i7lvkkyb4npiizsy3ida8jtt'}, function(error) {
 			if (e.keyCode === 13) {
 				e.preventDefault();
 				r.video.init(this.value, function() {
+					window.history.pushState(null, null, '/?b='+r.video.archiveId);
 					r.video.insert();
 					r.video.ready(function() {
 						r.chat.seek(r.video.then());
