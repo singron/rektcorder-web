@@ -17,6 +17,9 @@
  */
 'use strict';
 var Queue = require('data-structures').Queue;
+// jshint undef:false
+oboe = oboe;
+// jshint undef:true
 
 // from css-tricks.com
 function getQueryVariable(variable) {
@@ -48,160 +51,230 @@ function parseDuration(str) {
 	return seconds;
 }
 
-var Rekt = function(options) {
-	var Rekt = {};
-	Rekt.chatEl = options.chatEl;
-	Rekt.videoEl = options.videoEl;
-	Rekt.playEl = options.playEl;
-	Rekt.timeEl = options.timeEl;
-	Rekt.scrolledUp = false;
-	Rekt.offsetAdj = 0;
-	$(Rekt.chatEl.parentElement).scroll(function() {
-		var p = Rekt.chatEl.parentElement;
+// Chat player
+var Chat = function(options) {
+	var self = {};
+	self.chatEl = options.chatEl;
+	self.scrolledUp = false;
+	// private functions
+	self._ = {};
+
+	$(self.chatEl.parentElement).scroll(function() {
+		var p = self.chatEl.parentElement;
 		var pa = p.scrollTop;
 		var pb = p.scrollHeight - p.clientHeight;
 		var pc = pa/pb;
 		if (pc >= 0.99 || pb === 0) {
-			Rekt.scrolledUp = false;
+			self.scrolledUp = false;
 		} else {
-			Rekt.scrolledUp = true;
-		}
-	});
-	$(Rekt.playEl).click(function() {
-		if (Rekt.paused) {
-			Rekt.playEl.firstChild.className = 'glyphicon glyphicon-pause';
-			Rekt.play();
-		} else {
-			Rekt.playEl.firstChild.className = 'glyphicon glyphicon-play';
-			Rekt.pause();
+			self.scrolledUp = true;
 		}
 	});
 
-	var logTime = function(t) {
+	// just adjust time
+	self._.skipSeek = function(time) {
+		self.startedAt = time;
+		self.offset = Date.now() - self.startedAt;
+	};
+
+	// get log url of time in millis
+	var logUrl = function(time) {
+		// pad to length 2
 		var p = function(n) {
 			return n < 10 ? '0' + n : '' + n;
 		};
-		return t.getUTCFullYear() + '-' + p(t.getUTCMonth()+1) + '-' + p(t.getUTCDate()) + '-' + p(t.getUTCHours());
+		var t = new Date(time);
+		var d = t.getUTCFullYear() + '-' + p(t.getUTCMonth()+1) + '-' + p(t.getUTCDate()) + '-' + p(t.getUTCHours());
+		return 'http://destisenpaii.me/log/chat-' + d + '.log';
 	};
 
-	Rekt.start = function() {
-		Rekt.scrolledUp = false;
-		Rekt.chatEl.parentElement.scrollTop = Rekt.chatEl.parentElement.scrollHeight;
-		Rekt.messageQueue = new Queue();
-		Rekt.processing = false;
-		Rekt.paused = false;
-		Rekt.playEl.firstChild.className = 'glyphicon glyphicon-pause';
-		Rekt.lastLogTime = Rekt.time;
-		Rekt.download();
-		Rekt.updateTime = setInterval(function() {
-			Rekt.timeEl.innerHTML = new Date(Rekt.then()).toLocaleString();
-		}, 1000);
+	self._.resetDownloadTimeout = function() {
+		clearTimeout(self.downloadTimeout);
+		self.downloadTimeout = setTimeout(function() {
+			if (logUrl(self.then()) === self.logUrl) {
+				self._.resetDownloadTimeout();
+			} else {
+				console.log('log download timed out');
+				self._.initStream();
+			}
+		}, 5000);
 	};
-	Rekt.stop = function() {
-		clearTimeout(Rekt.updateTime);
-		clearTimeout(Rekt.downloadTimeout);
-		clearTimeout(Rekt.nextProcess);
-		Rekt.processing = false;
-		if (Rekt.oboe) {
-			Rekt.oboe.abort();
+
+	self._.startProcessing = function() {
+		if (!self.processing) {
+			self.processTimeout = setTimeout(function() {
+				self._.process();
+			}, 0);
 		}
 	};
-	Rekt.clear = function() {
-		Rekt.chatEl.innerHTML = '';
-	};
-	Rekt.then = function() {
-		return Date.now() - Rekt.offset + Rekt.offsetAdj * 1000;
-	};
-	Rekt.downloadTimeout = null;
-	Rekt.download = function() {
-		console.log('starting download');
-		// jshint undef:false
-		Rekt.oboe = oboe('http://destisenpaii.me/log/chat-'+logTime(Rekt.lastLogTime)+'.log').done(function(msg) {
-			// jshint undef:true
-			// next object available
-			Rekt.messageQueue.enqueue(msg);
-			if (!Rekt.processing) {
-				Rekt.process();
-			}
-			clearTimeout(Rekt.downloadTimeout);
-			var checkDownload = function() {
-				if (logTime(Rekt.lastLogTime) !== logTime(new Date(Rekt.then()))) {
-					Rekt.oboe.abort();
-					console.log('download finished');
-					Rekt.lastLogTime = new Date(Rekt.then());
-					Rekt.download();
-				} else {
-					Rekt.downloadTimeout = setTimeout(checkDownload, 5000);
-				}
-			};
-			Rekt.downloadTimeout = setTimeout(checkDownload, 5000);
-		}).fail(function(error) {
-			console.log('FAIL');
-			console.log(error);
-			if (error.statusCode === 0 && error.thrown === undefined) {
-				var d = document.createElement('div');
-				d.className = 'msg';
-				d.innerHTML = 'No Logs Available';
-				Rekt.chatEl.appendChild(d);
-			}
-		});
-	};
-	Rekt.pause = function() {
-		Rekt.paused = true;
-		Rekt.pausedAt = Date.now();
-	};
-	Rekt.play = function() {
-		Rekt.paused = false;
-		Rekt.offset += Date.now() - Rekt.pausedAt;
-		if (!Rekt.processing) {
-			Rekt.process();
-		}
-	};
-	Rekt.process = function() {
-		if (Rekt.paused) {
-			Rekt.processing = false;
+
+	self._.process = function() {
+		if (self.messageQueue.size === 0) {
+			self.processing = false;
 			return;
 		}
-		if (Rekt.messageQueue.size === 0) {
-			Rekt.processing = false;
-			return;
-		}
-		Rekt.processing = true;
-		var msg = Rekt.messageQueue.dequeue();
-		var millis = msg.timestamp - Rekt.then();
-		if (Math.abs(millis) > 1000 * 60 * 60) {
-			console.log('Waiting too long: ', millis);
-		}
-		if (millis > 0) {
-			Rekt.nextProcess = setTimeout(function() {
-				Rekt.onMsg(msg);
-			}, millis);
+		self.processing = true;
+		var msg = self.messageQueue.peek();
+		var millis = msg.timestamp - self.then();
+		if (msg.timestamp < self.lastMessageAt) {
+			// this is before the last message, discard
+			console.log('skipping message ' + (-millis) + ' millis ago');
 		} else {
-			Rekt.onMsg(msg);
+			if (millis > 0) {
+				self.processTimeout = setTimeout(function() {
+					self._.process();
+				}, millis);
+			} else {
+				self.messageQueue.dequeue();
+				self.onMsg(msg);
+				self.processTimeout = setTimeout(function() {
+					self._.process();
+				}, 0);
+			}
 		}
 	};
+
 	var msgTmpl = doT.template(
 		'<span class="nick">{{=it.nick}}:</span> <span class="msg">{{=it.data}}</span>'
 	);
-	Rekt.onMsg = function(msg) {
+
+	self.onMsg = function(msg) {
+		self._.printMsg('msg', msgTmpl(msg));
+	};
+
+	self._.initStream = function() {
+		self.log('initializing stream');
+		self.messageQueue = new Queue();
+		if (self.oboe) {
+			self.oboe.abort();
+		}
+		self.logUrl = logUrl(self.then());
+		self.oboe = oboe(self.logUrl).done(function(msg) {
+			self.messageQueue.enqueue(msg);
+			self._.startProcessing();
+			self._.resetDownloadTimeout();
+		}).fail(function(error) {
+			console.log(error);
+			if (error.statusCode === 0 && error.thrown === undefined) {
+				self.log('No logs available');
+			} else {
+				self.log('Error downloading chat logs');
+			}
+		});
+	};
+
+	// seek to time in past (milliseconds utc)
+	self.seek = function(time) {
+		console.log('chat seeking to time ' + time);
+		var oldThen = self.then();
+		self._.skipSeek(time);
+		var newThen = self.then();
+		if (!oldThen || Math.abs(newThen - oldThen) > 20000) {
+			self.processing = false;
+			clearTimeout(self.processTimeout);
+			self._.initStream();
+		}
+	};
+
+	self.play = function() {
+		self.pausedAt = undefined;
+		self.processing = false;
+		self._.startProcessing();
+	};
+
+	self.pause = function() {
+		self.pausedAt = self.then();
+		self.processing = true;
+		clearTimeout(self.processTimeout);
+	};
+
+	// what time do we think it is (milliseconds utc)
+	self.then = function() {
+		if (self.pausedAt) {
+			return self.pausedAt;
+		}
+		return Date.now() - self.offset;
+	};
+
+	// empty chat
+	self.clear = function() {
+		self.lastMessageAt = 0;
+		self.chatEl.innerHTML = '';
+	};
+
+	self.scrollDown = function() {
+		var p = self.chatEl.parentElement;
+		p.scrollTop = p.scrollHeight;
+	};
+
+	self._.printMsg = function(cssClass, html) {
 		var m = document.createElement('div');
-		m.class = 'msg';
-		m.innerHTML = msgTmpl(msg);
-		Rekt.chatEl.appendChild(m);
-		if (!Rekt.scrolledUp) {
-			Rekt.chatEl.parentElement.scrollTop = Rekt.chatEl.parentElement.scrollHeight;
-			while (Rekt.chatEl.children.length > 300) {
-				Rekt.chatEl.firstChild.remove();
+		m.class = cssClass;
+		m.innerHTML = html;
+		self.chatEl.appendChild(m);
+		if (!self.scrolledUp) {
+			self.scrollDown();
+			while (self.chatEl.children.length > 300) {
+				self.chatEl.firstChild.remove();
 			}
 		}
-		Rekt.process();
 	};
-	Rekt.getStartedAt = function(vstr, callback) {
+
+	// print status message in chat
+	self.log = function(msg) {
+		self._.printMsg('msg-log', msg);
+	};
+	return self;
+};
+
+// video player
+var Video = function(options) {
+	var self = {};
+
+	self.videoEl = options.videoEl;
+	self.videoLoaded = false;
+
+	// seek video to time (milliseconds)
+	self.seek = function(time) {
+		if (self.videoLoaded) {
+			self.player.seekVideo((self.startedAt - time) / 1000);
+		} else {
+			throw 'video not loaded';
+		}
+	};
+
+	self.then = function() {
+		if (self.videoLoaded) {
+			return self.startedAt + self.player.getVideoTime() * 1000;
+		} else {
+			throw 'video not loaded';
+		}
+	};
+
+	var videoTmpl = doT.template(
+	 '<object id="twitch-embed" type="application/x-shockwave-flash" data="http://www.twitch.tv/widgets/archive_embed_player.swf" width="100%" height="100%" style="display: block !important;">' +
+	 '<param name="movie" value="http://www.twitch.tv/widgets/archive_embed_player.swf">' +
+	 '<param name="quality" value="best">' +
+	 '<param name="allowFullScreen" value="true">' +
+	 '<param name="allowScriptAccess" value="always">' +
+	 '<param name="pluginspage" value="http://www.macromedia.com/go/getflashplayer">' +
+	 '<param name="autoplay" value="false">' +
+	 '<param name="autostart" value="false">' +
+	 '<param name="flashvars" value="archive_id={{= it.archiveId }}&hostname=www.twitch.tv&channel=destiny&auto_play=true&eventsCallback=r.video.playerEvent">' +
+	 '</object>');
+
+	self.insert = function() {
+		self.videoLoaded = false;
+		self.videoEl.innerHTML = videoTmpl({archiveId: self.archiveId});
+		self.player = document.getElementById('twitch-embed');
+	};
+
+	self.init = function(vstr, callback) {
 		var m = vstr.match(/((twitch.tv\/destiny\/)?b\/)?(\d+)/);
 		var videoId = '';
 		if (m) {
 			videoId = 'a'+m[3];
-			Rekt.archiveId = m[3];
+			self.archiveId = m[3];
 		} else {
 			m = vstr.match(/(b|c)\d+/);
 			if (m) {
@@ -216,61 +289,93 @@ var Rekt = function(options) {
 				return;
 			}
 			// jshint camelcase: false
-			Rekt.setTime(new Date(video.recorded_at));
+			self.startedAt = new Date(video.recorded_at).getTime();
 			// jshint camelcase: true
 			document.title = video.title + ' - DestiSenpaii';
-			callback(Rekt.time);
+			if (callback) {
+				callback();
+			}
 		});
 	};
-	Rekt.setTime = function (t) {
-		Rekt.time = t;
-		Rekt.offset = Date.now() - Rekt.time.getTime();
-	};
-	var videoTmpl = doT.template(
-	 '<object id="twitch-embed" type="application/x-shockwave-flash" data="http://www.twitch.tv/widgets/archive_embed_player.swf" width="100%" height="100%" style="display: block !important;">' +
-	 '<param name="movie" value="http://www.twitch.tv/widgets/archive_embed_player.swf">' +
-	 '<param name="quality" value="best">' +
-	 '<param name="allowFullScreen" value="true">' +
-	 '<param name="allowScriptAccess" value="always">' +
-	 '<param name="pluginspage" value="http://www.macromedia.com/go/getflashplayer">' +
-	 '<param name="autoplay" value="false">' +
-	 '<param name="autostart" value="false">' +
-	 '<param name="flashvars" value="archive_id={{= it.archiveId }}&hostname=www.twitch.tv&channel=destiny&auto_play=true&eventsCallback=r.playerEvent">' +
-	 '</object>');
-	Rekt.insertVideo = function() {
-		Rekt.videoEl.innerHTML = videoTmpl({archiveId: Rekt.archiveId});
-		Rekt.player = document.getElementById('twitch-embed');
-	};
-	Rekt.playerEvent = function(es) {
-		for (var i = 0; i < es.length; i++) {
-			var e = es[i];
+
+	self.playerEvent = function(events) {
+		for (var i = 0; i < events.length; i++) {
+			var e = events[i];
 			console.log('player event:', e);
-			if (e.event === 'videoLoaded') {
-				if (Rekt.seekTo) {
-					Rekt.player.videoSeek(Rekt.seekTo);
+			if (e.event === 'videoPlaying') {
+				self.videoLoaded = true;
+				if (self.onReady) {
+					self.onReady();
+					self.onReady = null;
 				}
 			}
-			if (e.event === 'videoPlaying') {
-				Rekt.videoStarted = Date.now();
-				setInterval(Rekt.fixSeek, 1000);
+		}
+	};
+
+	self.ready = function(f) {
+		if (self.videoLoaded) {
+			f();
+		} else {
+			self.onReady = f;
+		}
+	};
+
+	self.log = console.log;
+	return self;
+};
+
+// various glue
+var Rekt = function(options) {
+	var self = {};
+	self.video = new Video(options.video);
+	self.chat = new Chat(options.chat);
+	self.playEl = options.playEl;
+	self.time = document.getElementById('time');
+	self.playEl.firstChild.className = 'glyphicon glyphicon-pause';
+	self.offsetAdj = options.offsetAdj;
+	if (!self.offsetAdj) {
+		self.offsetAdj = 0;
+	}
+	var timeTmpl = doT.template(
+	'<span title="video: {{= it.vstr}}&#13;chat: {{= it.cstr }}">{{= it.cstr }}</span>'
+	);
+	setInterval(function() {
+		var tryy = function(f, def) {
+			try {
+				return f();
+			} catch (e) {
+				return def;
+			}
+		};
+		var cthen = self.chat.then();
+		var vthen = tryy(self.video.then, 0);
+		if (cthen) {
+			var cstr = new Date(cthen).toISOString();
+			var vstr = new Date(vthen).toISOString();
+			self.time.innerHTML = timeTmpl({
+				cthen: cthen,
+				vthen: vthen,
+				cstr: cstr,
+				vstr: vstr,
+			});
+			if (vthen) {
+				var nvthen = self.offsetAdj * 1000 + vthen;
+				if (Math.abs(cthen - nvthen) > 1000) {
+					self.chat.seek(nvthen);
+				}
 			}
 		}
-	};
-	Rekt.fixSeek = function() {
-		var supposedVideoTime = Date.now() - Rekt.videoStarted;
-		var actualVideoTime = Rekt.player.getVideoTime() * 1000;
-		var millisAhead = supposedVideoTime - actualVideoTime;
-		if (Math.abs(millisAhead) > 5000 && !Rekt.paused && !Rekt.player.isPaused() && actualVideoTime !== Rekt.lastVideoTime) {
-			console.log('Seek of ' + millisAhead / 1000 + ' seconds detected');
-			Rekt.stop();
-			Rekt.clear();
-			Rekt.setTime(new Date(Rekt.time.getTime() - millisAhead));
-			Rekt.videoStarted = Date.now() - actualVideoTime;
-			Rekt.start();
+	}, 1000);
+	$(self.playEl).click(function() {
+		if (Rekt.paused) {
+			Rekt.playEl.firstChild.className = 'glyphicon glyphicon-pause';
+			Rekt.play();
+		} else {
+			Rekt.playEl.firstChild.className = 'glyphicon glyphicon-play';
+			Rekt.pause();
 		}
-		Rekt.lastVideoTime = actualVideoTime;
-	};
-	return Rekt;
+	});
+	return self;
 };
 
 var r;
@@ -291,8 +396,12 @@ Twitch.init({clientId: '3ccszp1i7lvkkyb4npiizsy3ida8jtt'}, function(error) {
 		console.log('TWITCH INIT FAILED ', error);
 	}
 	r = new Rekt({
-		chatEl: document.getElementById('msgs'),
-		videoEl: document.getElementById('video'),
+		chat: {
+			chatEl: document.getElementById('msgs')
+		},
+		video: {
+			videoEl: document.getElementById('video')
+		},
 		playEl: document.getElementById('play-btn'),
 		timeEl: document.getElementById('time')
 	});
@@ -314,17 +423,19 @@ Twitch.init({clientId: '3ccszp1i7lvkkyb4npiizsy3ida8jtt'}, function(error) {
 			}
 		}
 		$('#videoUrl').val('b/'+b);
-		r.getStartedAt('b/'+b, function() {
-			r.setTime(new Date(r.time.getTime() + tn*1000));
-			r.start();
-			r.insertVideo();
-			r.seekTo = tn;
-			$('#timepicker').data('DateTimePicker').setDate(r.time);
+		r.video.init('b/'+b, function() {
+			r.video.insert();
+			r.video.ready(function() {
+				console.log('then', r.video.then());
+				r.chat.seek(r.video.then());
+				$('#timepicker').data('DateTimePicker').setDate(new Date(r.chat.then()));
+			});
 		});
 	} else {
 		Twitch.api({method: '/channels/destiny/videos?broadcasts=true&limit=4'}, function(error, videos) {
 			if (error) {
 				console.log(error);
+				return;
 			}
 			var out = '';
 			for (var i = 0; i < videos.videos.length; i++) {
@@ -340,32 +451,29 @@ Twitch.init({clientId: '3ccszp1i7lvkkyb4npiizsy3ida8jtt'}, function(error) {
 		$('#videoUrl').keypress(function(e) {
 			if (e.keyCode === 13) {
 				e.preventDefault();
-				r.getStartedAt(this.value, function() {
-					r.start();
-					r.insertVideo();
-					$('#timepicker').data('DateTimePicker').setDate(r.time);
+				r.video.init(this.value, function() {
+					r.video.insert();
+					r.video.ready(function() {
+						r.chat.seek(r.video.then());
+						$('#timepicker').data('DateTimePicker').setDate(new Date(r.chat.then()));
+					});
 				});
+				return false;
 			}
-			return false;
+			return true;
 		});
 	}
 });
 var tp = $('#timepicker');
 tp.datetimepicker();
 tp.on('dp.change', function(e) {
-	r.stop();
-	r.clear();
-	r.setTime(e.date.toDate());
-	r.start();
+	console.log(e);
+	console.log(e.date.toDate().getTime());
+	r.chat.seek(e.date.toDate().getTime());
 });
 $('#control-menu-btn').click(function() {
 	$('#control-menu').toggle();
 });
 $('#offset-adj').change(function() {
 	r.offsetAdj = this.value * 1;
-});
-$('#reload-logs').click(function() {
-	r.stop();
-	r.clear();
-	r.start();
 });
