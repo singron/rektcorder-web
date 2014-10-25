@@ -135,7 +135,8 @@ var Chat = function(options) {
 	};
 
 	var msgTmpl = doT.template(
-		'<span class="nick">{{=it.nick}}:</span> <span class="msg">{{=it.data}}</span>'
+		'<span class="nick">{{!it.nick}}:</span> ' +
+		'<span class="msg">{{= urlize(it.data, {autoescape: true, target: "_blank", trim: "http"})}}</span>'
 	);
 
 	self.onMsg = function(msg) {
