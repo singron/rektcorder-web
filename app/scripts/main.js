@@ -148,7 +148,7 @@ var Chat = function(options) {
 		'Sippy', 'SoDoge', 'SoSad', 'TooSpicy', 'UWOTM8', 'WORTH', 'WhoahDude'
 	];
 
-	var emoteRegex = new RegExp('(?:^| )('+emotes.join("|")+')(?:$| )');
+	var emoteRegex = new RegExp('(?:^| )('+emotes.join('|')+')(?:$| )');
 
 	self.onMsg = function(msg) {
 		if (msg.data[0] === '>') {
