@@ -256,7 +256,15 @@ var Video = function(options) {
 	// seek video to time (milliseconds)
 	self.seek = function(time) {
 		if (self.videoLoaded) {
-			self.player.seekVideo((self.startedAt - time) / 1000);
+			self.player.videoSeek((self.startedAt - time) / 1000);
+		} else {
+			throw 'video not loaded';
+		}
+	};
+
+	self.seekFromStart = function(seconds) {
+		if (self.videoLoaded) {
+			self.player.videoSeek(seconds);
 		} else {
 			throw 'video not loaded';
 		}
@@ -432,20 +440,15 @@ Twitch.init({clientId: '3ccszp1i7lvkkyb4npiizsy3ida8jtt'}, function(error) {
 	var b = getQueryVariable('b');
 	if (b && b.match(/^\d+$/)) {
 		var t = getQueryVariable('t');
-		var tn = 0;
-		if (t) {
-			tn = parseDuration(t);
-			if (tn === null) {
-				tn = 0;
-			} else {
-				console.log('seeking ' + tn + ' seconds ahead');
-			}
-		}
+		var tn = parseDuration(t);
 		$('#videoUrl').val('b/'+b);
 		r.video.init('b/'+b, function() {
 			r.video.insert();
 			r.video.ready(function() {
-				console.log('then', r.video.then());
+				if (tn) {
+					console.log('seeking ' + tn + ' seconds from start');
+					r.video.seekFromStart(tn);
+				}
 				r.chat.seek(r.video.then());
 				$('#timepicker').data('DateTimePicker').setDate(new Date(r.chat.then()));
 			});
