@@ -136,10 +136,27 @@ var Chat = function(options) {
 
 	var msgTmpl = doT.template(
 		'<span class="nick">{{!it.nick}}:</span> ' +
-		'<span class="msg">{{= urlize(it.data, {autoescape: true, target: "_blank", trim: "http"})}}</span>'
+		'<span class="msg {{=it.classes}}">{{=it.data}}</span>'
 	);
 
+	var emotes = [
+		'AYYYLMAO', 'Abathur', 'AngelThump', 'BasedGod', 'BibleThump', 'CallCatz', 'CallChad',
+		'DAFUK', 'DANKMEMES', 'DURRSTINY', 'DaFeels', 'DappaKappa', 'DatGeoff', 'DestiSenpaii',
+		'Disgustiny', 'Dravewin', 'DuckerZ', 'FIDGETLOL', 'FeedNathan', 'FerretLOL', 'FrankerZ',
+		'GameOfThrows', 'Heimerdonger', 'Hhhehhehe', 'INFESTINY', 'KINGSLY', 'Kappa', 'Klappa',
+		'LUL', 'MotherFuckinGame', 'Nappa', 'NoTears', 'OhKrappa', 'OverRustle', 'SURPRISE',
+		'Sippy', 'SoDoge', 'SoSad', 'TooSpicy', 'UWOTM8', 'WORTH', 'WhoahDude'
+	];
+
+	var emoteRegex = new RegExp('(?:^| )('+emotes.join("|")+')(?:$| )');
+
 	self.onMsg = function(msg) {
+		if (msg.data[0] === '>') {
+			msg.classes = 'green-text';
+		}
+        msg.data = urlize(msg.data, {autoescape: true, target: '_blank', trim: 'http'});
+		msg.data = msg.data.replace(emoteRegex,
+		'<div title="$1" class="chat-emote chat-emote-$1"></div>');
 		self._.printMsg('msg', msgTmpl(msg));
 	};
 
