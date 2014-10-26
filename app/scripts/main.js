@@ -440,12 +440,12 @@ Twitch.init({clientId: '3ccszp1i7lvkkyb4npiizsy3ida8jtt'}, function(error) {
 	var b = getQueryVariable('b');
 	if (b && b.match(/^\d+$/)) {
 		var t = getQueryVariable('t');
-		var tn = parseDuration(t);
 		$('#videoUrl').val('b/'+b);
 		r.video.init('b/'+b, function() {
 			r.video.insert();
 			r.video.ready(function() {
-				if (tn) {
+				if (t) {
+					var tn = parseDuration(t);
 					console.log('seeking ' + tn + ' seconds from start');
 					r.video.seekFromStart(tn);
 				}
