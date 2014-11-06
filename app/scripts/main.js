@@ -246,8 +246,7 @@ var Chat = function(options) {
 	return self;
 };
 
-// video player
-var Video = function(options) {
+var TwitchVideo = function(options) {
 	var self = {};
 
 	self.videoEl = options.videoEl;
@@ -296,6 +295,7 @@ var Video = function(options) {
 		self.player = document.getElementById('twitch-embed');
 	};
 
+	// return true if vstr ids twitch video
 	self.init = function(vstr, callback) {
 		var m = vstr.match(/((twitch.tv\/destiny\/)?b\/)?(\d+)/);
 		var videoId = '';
@@ -307,7 +307,7 @@ var Video = function(options) {
 			if (m) {
 				videoId = m[0];
 			} else {
-				console.log('dont understand ', vstr);
+				return false;
 			}
 		}
 		Twitch.api({method: 'videos/'+videoId}, function(error, video) {
@@ -319,10 +319,12 @@ var Video = function(options) {
 			self.startedAt = new Date(video.recorded_at).getTime();
 			// jshint camelcase: true
 			document.title = video.title + ' - DestiSenpaii';
+			self.insert();
 			if (callback) {
 				callback();
 			}
 		});
+		return true;
 	};
 
 	self.playerEvent = function(events) {
@@ -351,10 +353,81 @@ var Video = function(options) {
 	return self;
 };
 
+var YoutubeVideo = function(options) {
+	var self = {};
+
+
+	self.videoEl = options.videoEl;
+	self.videoLoaded = false;
+
+	// seek video to time (milliseconds)
+	self.seek = function(time) {
+		if (self.videoLoaded) {
+			self.player.seekTo((self.startedAt - time) / 1000, true);
+		} else {
+			throw 'video not loaded';
+		}
+	};
+
+	self.seekFromStart = function(seconds) {
+		if (self.videoLoaded) {
+			self.player.seekTo(seconds, true);
+		} else {
+			throw 'video not loaded';
+		}
+	};
+
+	self.then = function() {
+		if (self.videoLoaded) {
+			return self.startedAt + self.player.getCurrentTime() * 1000;
+		} else {
+			throw 'video not loaded';
+		}
+	};
+
+	var videoTmpl = doT.template(
+	 '<object id="youtube-embed" type="application/x-shockwave-flash" data="http://www.youtube.com/v/{{=it.videoId}}?version=3&enablejsapi=1&playerapiid=asdf" width="100%" height="100%" style="display: block !important;">' +
+		 '<param name="quality" value="best">' +
+		 '<param name="allowFullScreen" value="true">' +
+		 '<param name="allowScriptAccess" value="always">' +
+		 '<param name="pluginspage" value="http://www.macromedia.com/go/getflashplayer">' +
+		 '<param name="autoplay" value="false">' +
+		 '<param name="autostart" value="false">' +
+	 '</object>');
+
+	self.insert = function() {
+		self.videoLoaded = false;
+		self.videoEl.innerHTML = videoTmpl({videoId: self.videoId});
+		self.player = document.getElementById('youtube-embed');
+	};
+
+	// return true if vstr ids youtube video
+	self.init = function(vstr, callback) {
+		var m = vstr.match(/(?:v=|v\/|youtu\.be\/)([a-zA-Z_0-9-]*)/);
+		if (!m) {
+			return false;
+		}
+		self.videoId = m[1];
+		self.insert();
+		self.callback = callback;
+		return true;
+	};
+
+	window.onYouTubePlayerReady = function() {
+		console.log('youtube loaded');
+		self.videoLoaded = true;
+		if (self.callback) {
+			self.callback();
+			self.callback = null;
+		}
+	};
+	return self;
+};
+
 // various glue
 var Rekt = function(options) {
 	var self = {};
-	self.video = new Video(options.video);
+	self.video = new TwitchVideo(options.video);
 	self.chat = new Chat(options.chat);
 	self.playEl = options.playEl;
 	self.time = document.getElementById('time');
@@ -438,11 +511,12 @@ Twitch.init({clientId: '3ccszp1i7lvkkyb4npiizsy3ida8jtt'}, function(error) {
 		r.offsetAdj = o * 1;
 	}
 	var b = getQueryVariable('b');
+	var v = getQueryVariable('v');
+	var s = getQueryVariable('s');
 	if (b && b.match(/^\d+$/)) {
 		var t = getQueryVariable('t');
 		$('#videoUrl').val('b/'+b);
 		r.video.init('b/'+b, function() {
-			r.video.insert();
 			r.video.ready(function() {
 				if (t) {
 					var tn = parseDuration(t);
@@ -452,6 +526,16 @@ Twitch.init({clientId: '3ccszp1i7lvkkyb4npiizsy3ida8jtt'}, function(error) {
 				r.chat.seek(r.video.then());
 				$('#timepicker').data('DateTimePicker').setDate(new Date(r.chat.then()));
 			});
+		});
+	} else if (v && v.match(/^[a-zA-Z0-9_-]+$/)) {
+		console.log('Init youtube');
+		r.video = new YoutubeVideo({videoEl: document.getElementById('video')});
+		s = parseInt(s);
+		if (s) {
+			r.video.startedAt = s;
+		}
+		r.video.init('v='+v, function() {
+			r.chat.seek(r.video.then());
 		});
 	} else {
 		Twitch.api({method: '/channels/destiny/videos?broadcasts=true&limit=4'}, function(error, videos) {
